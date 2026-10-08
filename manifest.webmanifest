@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "CS Lite Evo",
+  "short_name": "CS Lite",
+  "description": "Jogo FPS de sobrevivência em HTML5.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#05060a",
+  "theme_color": "#05060a",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
