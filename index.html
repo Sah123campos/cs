@@ -6,7 +6,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CS Lite Evo">
+<meta name="theme-color" content="#05060a">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
 <title>CS Lite Evoluído — FPS + Espada + Upgrades</title>
 <style>
   /* ===================== ESTILO GERAL ===================== */
@@ -223,6 +226,7 @@
 <div id="orientation" class="overlay">
   <span class="rotateIcon" aria-hidden="true">📱</span>
   <h1>Gire o celular para<br>jogar na horizontal 📱↔️</h1>
+  <button id="orientationAction">TENTAR MODO HORIZONTAL</button>
 </div>
 
 <div id="mobileTutorial" class="mobileDialog overlay">
@@ -1393,17 +1397,35 @@ function requestLock() {
   try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
 }
 
+function requestImmersiveMode() {
+  if (!isMobileDevice) return;
+  let fullscreenRequest = null;
+  if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+    try {
+      fullscreenRequest = document.documentElement.requestFullscreen();
+    } catch (e) {}
+  }
+
+  const lockLandscape = () => {
+    if (!screen.orientation || typeof screen.orientation.lock !== 'function') return;
+    try {
+      const lockRequest = screen.orientation.lock('landscape');
+      if (lockRequest && lockRequest.catch) lockRequest.catch(() => {});
+    } catch (e) {}
+  };
+
+  if (fullscreenRequest && typeof fullscreenRequest.then === 'function') {
+    fullscreenRequest.then(lockLandscape, lockLandscape);
+  } else {
+    lockLandscape();
+  }
+}
+
 function startGame() {
   initAudio();
   if (isMobileDevice && isPortrait()) { updateOrientation(); return; }
   if (state === 'menu' || state === 'over') resetGame();
   state = 'playing'; showOverlay(null);
-  if (isMobileDevice && screen.orientation && typeof screen.orientation.lock === 'function') {
-    try {
-      const lockRequest = screen.orientation.lock('landscape');
-      if (lockRequest && lockRequest.catch) lockRequest.catch(() => {});
-    } catch (e) {}
-  }
   if (isMobileDevice && wave === 1) toast('Arraste o lado esquerdo para se mover', '#ffd166');
   requestLock();
 }
@@ -1674,6 +1696,7 @@ function finishTutorial() {
 }
 
 function requestStart() {
+  requestImmersiveMode();
   if (isMobileDevice && isPortrait()) { updateOrientation(); return; }
   if (isMobileDevice && !tutorialSeen) showTutorial();
   else startGame();
@@ -1691,10 +1714,12 @@ $('btnStart').addEventListener('click', requestStart);
 $('btnRestart').addEventListener('click', requestStart);
 $('btnResume').addEventListener('click', () => {
   if (state !== 'paused') return;
+  requestImmersiveMode();
   state = 'playing'; showOverlay(null); requestLock();
 });
 $('pause').addEventListener('click', event => {
   if (state === 'paused' && !event.target.closest('button')) {
+    requestImmersiveMode();
     state = 'playing'; showOverlay(null); requestLock();
   }
 });
@@ -1710,6 +1735,10 @@ $('tutorialNext').addEventListener('click', () => {
   else finishTutorial();
 });
 $('tutorialSkip').addEventListener('click', finishTutorial);
+$('orientationAction').addEventListener('click', () => {
+  requestImmersiveMode();
+  window.setTimeout(updateOrientation, 250);
+});
 $('cameraSensitivity').addEventListener('input', event => { cameraSensitivity = Number(event.target.value); });
 $('moveSensitivity').addEventListener('input', event => { moveSensitivity = Number(event.target.value); });
 $('cameraMode').addEventListener('change', event => {
@@ -1730,12 +1759,7 @@ $('buttonSize').addEventListener('change', event => {
 });
 $('buttonSize').dispatchEvent(new Event('change'));
 $('forceLandscape').addEventListener('click', () => {
-  if (screen.orientation && typeof screen.orientation.lock === 'function') {
-    try {
-      const lockRequest = screen.orientation.lock('landscape');
-      if (lockRequest && lockRequest.catch) lockRequest.catch(() => {});
-    } catch (e) {}
-  }
+  requestImmersiveMode();
 });
 $('mobilePause').addEventListener('click', pauseGame);
 
