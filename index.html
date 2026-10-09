@@ -16,8 +16,12 @@
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#fff;
     font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;user-select:none;-webkit-user-select:none;
-    touch-action:none;-webkit-tap-highlight-color:transparent}
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   canvas#view{display:block;width:100%;height:100%}
+
+  button, .overlay, .upCard, .dialogCard, .touch-button { touch-action: manipulation; }
+  .overlay, .overlay * { pointer-events:auto; }
+  #deviceChoice, #deviceChoice * { pointer-events:auto; z-index:60; }
 
   /* ===================== HUD ===================== */
   #hud{position:fixed;inset:0;pointer-events:none;display:none}
@@ -75,15 +79,18 @@
 
   /* ===================== OVERLAYS ===================== */
   .overlay{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
-    gap:14px;background:rgba(0,0,0,.78);text-align:center;z-index:10;padding:20px}
-  .overlay.show{display:flex}
+    gap:14px;background:rgba(0,0,0,.78);text-align:center;z-index:10;padding:20px;pointer-events:auto}
+  .overlay.show{display:flex;pointer-events:auto}
+  #deviceChoice{z-index:50;pointer-events:auto}
+  #deviceChoice *{pointer-events:auto}
+  .overlay button{pointer-events:auto;touch-action:manipulation}
   .overlay h1{font-size:clamp(34px,6vw,64px);letter-spacing:6px;font-weight:900}
   .overlay h1 span{color:#ff9f1a}
   .overlay p{opacity:.85;max-width:600px;line-height:1.5}
   .keys{display:grid;grid-template-columns:auto auto;gap:6px 22px;text-align:left;margin:6px 0;font-size:14px}
   .keys b{color:#ffd166;font-weight:700}
   button{cursor:pointer;font:inherit;font-weight:800;letter-spacing:3px;padding:14px 34px;color:#111;
-    background:#ff9f1a;border:0;border-radius:4px;transition:transform .1s,background .1s}
+    background:#ff9f1a;border:0;border-radius:4px;transition:transform .1s,background .1s;pointer-events:auto}
   button:hover{background:#ffb84d;transform:scale(1.04)}
   #goScore{font-size:54px;font-weight:900;color:#ffd166}
   #goStats{opacity:.8}
@@ -239,7 +246,7 @@
 </div>
 
 <!-- ===================== MENU INICIAL ===================== -->
-<div id="menu" class="overlay show">
+<div id="menu" class="overlay">
   <h1>CS <span>LITE</span> EVO</h1>
   <p>Explore as salas, elimine inimigos com <b>rifle</b> ou <b>espada</b>, agache para maior precisão,
      e evolua sua loadout entre as ondas. Inimigos esquivam, bloqueiam e ficam mais fortes nas salas distantes.</p>
@@ -261,6 +268,14 @@
   </div>
   <p style="font-size:13px;opacity:.65">Itens verdes = vida · itens amarelos = munição · <b>moedas 💰</b> caem dos inimigos</p>
   <button id="btnStart">JOGAR</button>
+</div>
+
+<!-- ===================== SELEÇÃO DE DISPOSITIVO ===================== -->
+<div id="deviceChoice" class="overlay show">
+  <h1>CS LITE EVO</h1>
+  <p>Selecione seu dispositivo:</p>
+  <button id="btnPC" type="button">🖥️ JOGAR NO PC</button>
+  <button id="btnMobile" type="button">📱 JOGAR NO MOBILE</button>
 </div>
 
 <!-- ===================== PAUSA ===================== -->
@@ -307,15 +322,57 @@
   <p style="font-size:12px;opacity:.55">ou pressione Enter</p>
 </div>
 
-<!-- ===================== SELEÇÃO DE DISPOSITIVO ===================== -->
-<div id="deviceChoice" class="overlay">
-  <h1>CS LITE EVO</h1>
-  <p>Selecione seu dispositivo:</p>
-  <button id="btnPC">🖥️ JOGAR NO PC</button>
-  <button id="btnMobile">📱 JOGAR NO MOBILE</button>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="./firebase-config.js"></script>
+
+<script>
+window.addEventListener('load', () => {
+  if (!window.firebaseConfig || !window.firebaseConfig.apiKey || String(window.firebaseConfig.apiKey).includes('SUA_API_KEY')) {
+    console.error('❌ firebase-config.js ainda está com valores de exemplo.');
+    return;
+  }
+
+  try {
+    firebase.initializeApp(window.firebaseConfig);
+
+    const db = firebase.database();
+    const auth = firebase.auth();
+
+    auth.signInAnonymously()
+      .then(() => {
+        console.log('✅ Login anônimo OK:', auth.currentUser.uid);
+      })
+      .catch((err) => {
+        console.error('❌ Login anônimo:', err);
+      });
+
+    window.FirebaseDB = {
+      app: firebase.app(),
+      db,
+      auth,
+      ref: (path) => db.ref(path),
+      set: (path, value) => db.ref(path).set(value),
+      update: (path, value) => db.ref(path).update(value),
+      remove: (path) => db.ref(path).remove(),
+      push: (path, value) => db.ref(path).push(value),
+      onValue: (path, cb) => db.ref(path).on('value', cb),
+      onDisconnect: (path) => db.ref(path).onDisconnect(),
+      serverTimestamp: firebase.database.ServerValue.TIMESTAMP,
+      signInAnonymously: () => auth.signInAnonymously(),
+      duelRoomTemplate: window.duelRoomTemplate,
+      createPlayerData: window.createPlayerData
+    };
+
+    console.log('🔥 Firebase inicializado');
+    window.dispatchEvent(new Event('firebase-ready'));
+  } catch (err) {
+    console.error('❌ Erro ao inicializar Firebase:', err);
+  }
+});
+</script>
 <script>
 (() => {
 'use strict';
@@ -948,21 +1005,13 @@ function spawnEnemy(x, z) {
     g.add(aura);
     e.aura = aura;
   }
-
-  g.position.set(x, 0, z); g.rotation.y = e.yaw;
-  scene.add(g); enemies.push(e);
-  return e;
-}
-
-function damageEnemy(e, dmg, point, headshot) {
-  if (e.dead) return;
-  if (e.blocking) dmg = Math.round(dmg * 0.5);
   e.hp -= dmg; e.flash = 0.12; e.alerted = true;
   burst(point, bloodMat, 6, 3, 0.45);
   e.recoilT = 0.4;
   if (e.hp <= 0) {
     e.dead = true; e.deathT = 0;
     score += 10;
+
     kills++;
     sfx.enemyDie();
     burst(new THREE.Vector3(e.x, 1.2, e.z), bloodMat, 14, 4, 0.7);
@@ -1007,7 +1056,7 @@ function updateEnemies(dt) {
     e.recoilT = Math.max(0, e.recoilT - dt);
 
     const dx = player.x - e.x, dz = player.z - e.z, dist = Math.hypot(dx, dz);
-    const losDireto = hasLOS(e.x, e.z, player.x, player.z);
+    const losDireto = hasLOS(e.x, ez, player.x, player.z);
 
     if (!e.alerted && dist < DETECT_R && (dist < 5 || losDireto)) e.alerted = true;
 
@@ -1400,6 +1449,86 @@ function showOverlay(which) {
   el.touchControls.classList.toggle('active', isMobileDevice && touchUiActive && which === null);
 }
 
+function showMultiplayerLobby() {
+  const label = document.createElement('div');
+  label.style.cssText = 'display:flex;flex-direction:column;gap:12px;align-items:center;';
+  label.innerHTML = `
+    <h1 style="font-size:clamp(28px,4vw,42px);letter-spacing:4px;">MULTIPLAYER</h1>
+    <button id="btnCreateRoom" type="button">CRIAR SALA</button>
+    <button id="btnJoinRoom" type="button">ENTRAR EM SALA</button>
+    <button id="btnBackMenu" type="button">VOLTAR</button>
+  `;
+
+  const current = document.querySelector('#deviceChoice .multiplayerBox');
+  if (current) current.remove();
+
+  const box = document.createElement('div');
+  box.className = 'multiplayerBox';
+  box.style.cssText = 'display:flex;flex-direction:column;gap:12px;align-items:center;';
+  box.appendChild(label);
+  el.deviceChoice.appendChild(box);
+
+  document.getElementById('btnCreateRoom').addEventListener('click', () => {
+    if (!window.FirebaseDB || !window.FirebaseDB.db) {
+      alert('Firebase ainda não foi inicializado.');
+      return;
+    }
+    const roomId = 'room-' + Math.random().toString(36).slice(2, 8);
+    const roomRef = window.FirebaseDB.ref('rooms/' + roomId);
+    const playerId = window.FirebaseDB.auth && window.FirebaseDB.auth.currentUser ? window.FirebaseDB.auth.currentUser.uid : 'guest';
+    const payload = {
+      ...window.duelRoomTemplate,
+      createdAt: Date.now(),
+      createdBy: playerId,
+      players: {
+        [playerId]: {
+          ...(window.createPlayerData ? window.createPlayerData('Jogador') : {}),
+          uid: playerId,
+          ready: false,
+          lastUpdate: Date.now()
+        }
+      }
+    };
+    roomRef.set(payload).then(() => {
+      console.log('Sala criada:', roomId);
+      alert('Sala criada: ' + roomId);
+    }).catch((err) => console.error('Erro ao criar sala:', err));
+  });
+
+  document.getElementById('btnJoinRoom').addEventListener('click', () => {
+    const roomId = prompt('Digite o código da sala:');
+    if (!roomId) return;
+    if (!window.FirebaseDB || !window.FirebaseDB.db) {
+      alert('Firebase ainda não foi inicializado.');
+      return;
+    }
+    const playerId = window.FirebaseDB.auth && window.FirebaseDB.auth.currentUser ? window.FirebaseDB.auth.currentUser.uid : 'guest';
+    const roomRef = window.FirebaseDB.ref('rooms/' + roomId);
+    roomRef.once('value').then((snap) => {
+      const data = snap.val();
+      if (!data) {
+        alert('Sala não encontrada.');
+        return;
+      }
+      const players = data.players || {};
+      players[playerId] = {
+        ...(window.createPlayerData ? window.createPlayerData('Jogador') : {}),
+        uid: playerId,
+        ready: false,
+        lastUpdate: Date.now()
+      };
+      roomRef.update({ players }).catch((err) => console.error('Erro ao entrar na sala:', err));
+      alert('Entrou na sala: ' + roomId);
+    }).catch((err) => console.error('Erro ao buscar sala:', err));
+  });
+
+  document.getElementById('btnBackMenu').addEventListener('click', () => {
+    const box = document.querySelector('#deviceChoice .multiplayerBox');
+    if (box) box.remove();
+    appReady();
+  });
+}
+
 function selectDevice(mode) {
   forcedDeviceMode = mode;
   isMobileDevice = mode === 'mobile';
@@ -1408,202 +1537,53 @@ function selectDevice(mode) {
   try { localStorage.setItem(DEVICE_MODE_KEY, mode); } catch (e) {}
   resetTouchInput();
   updateOrientation();
-  appReady();
-}
 
-function appReady() {
+  el.deviceChoice.classList.remove('show');
+  el.menu.classList.add('show');
   state = 'menu';
   showOverlay('menu');
-  requestImmersiveMode();
+  setTimeout(() => {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }, 50);
 }
 
-function resetGame() {
-  enemies.forEach(e => scene.remove(e.group)); enemies.length = 0;
-  pickups.forEach(p => scene.remove(p.mesh)); pickups.length = 0;
-  particles.forEach(p => scene.remove(p.mesh)); particles.length = 0;
-
-  upgradeScoreGoal = 60;
-  upgradeMenuOpen = false;
-
-  CFG = { magSize: 12, reserveStart: 60, reloadTime: 1.5, fireDelay: 0.16,
-          bodyDmg: 20, headDmg: 80, swordDmg: 60, swordHeadDmg: 120,
-          swordRange: 2.6, swordCooldown: 0.6, maxHp: 100 };
-  for (const k in upgrades) upgrades[k] = 0;
-
-  const r0 = rooms[0];
-  player.x = (r0.c0 + (r0.c1 - r0.c0 + 1) * 0.3) * T;
-  player.z = (r0.r0 + (r0.r1 - r0.r0 + 1) * 0.5) * T;
-  player.feet = 0; player.vx = player.vz = player.vy = 0; player.onGround = true;
-  player.hp = CFG.maxHp; player.yaw = -Math.PI / 2; player.pitch = 0;
-  player.crouching = false; player.eyeHeight = EYE_STAND;
-  score = 0; kills = 0; coins = 0; wave = 0; waveTimer = 0; gameTime = 0;
-  ammo = CFG.magSize; reserve = CFG.reserveStart; reloading = false; fireT = 0;
-  recoil = 0; kick = 0; damageFlash = 0; swordCooldownT = 0; swordAnim = 0; swordKick = 0;
-  lastHud = ''; flowT = 0;
-  resetTouchInput();
-  setWeapon('rifle');
-  computeFlow(player.x, player.z);
-}
-
-function requestLock() {
-  if (isMobileDevice) return;
-  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
-}
-
-function requestImmersiveMode() {
-  if (!isMobileDevice) return;
-  let fullscreenRequest = null;
-  if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-    try {
-      fullscreenRequest = document.documentElement.requestFullscreen();
-    } catch (e) {}
-  }
-
-  const lockLandscape = () => {
-    if (!screen.orientation || typeof screen.orientation.lock !== 'function') return;
-    try {
-      const lockRequest = screen.orientation.lock('landscape');
-      if (lockRequest && lockRequest.catch) lockRequest.catch(() => {});
-    } catch (e) {}
+function bindDeviceChoice() {
+  const pick = (mode) => (event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    selectDevice(mode);
   };
 
-  if (fullscreenRequest && typeof fullscreenRequest.then === 'function') {
-    fullscreenRequest.then(lockLandscape, lockLandscape);
-  } else {
-    lockLandscape();
+  const pcBtn = $('btnPC');
+  const mobileBtn = $('btnMobile');
+
+  if (pcBtn) {
+    pcBtn.onclick = pick('pc');
+    pcBtn.onpointerdown = pick('pc');
+    pcBtn.ontouchstart = (e) => { e.preventDefault(); pick('pc')(e); };
+    pcBtn.style.zIndex = '100';
+    pcBtn.style.position = 'relative';
+  }
+
+  if (mobileBtn) {
+    mobileBtn.onclick = pick('mobile');
+    mobileBtn.onpointerdown = pick('mobile');
+    mobileBtn.ontouchstart = (e) => { e.preventDefault(); pick('mobile')(e); };
+    mobileBtn.style.zIndex = '100';
+    mobileBtn.style.position = 'relative';
   }
 }
 
-function startGame() {
-  initAudio();
-  if (isMobileDevice && isPortrait()) { updateOrientation(); return; }
-  if (state === 'menu' || state === 'over') resetGame();
-  state = 'playing'; showOverlay(null);
-  if (isMobileDevice && wave === 1) toast('Arraste o lado esquerdo para se mover', '#ffd166');
-  requestLock();
-}
-
-function gameOver() {
-  state = 'over'; mouseDown = false;
-  resetTouchInput();
-  best = Math.max(best, score);
-  try { localStorage.setItem('cslite_evo_best', best); } catch (e) {}
-  el.goScore.textContent = score;
-  el.goStats.textContent = 'Abates: ' + kills + '  ·  Onda alcançada: ' + wave + '  ·  Recorde: ' + best;
-  if (!isMobileDevice && document.exitPointerLock) document.exitPointerLock();
-  vibrate([50]);
-  showOverlay('over');
-}
-
-/* =====================================================================
-   SISTEMA DE UPGRADES
-   ===================================================================== */
-const UPGRADE_POOL = [
-  { id: 'fireRate',  icon: '⚡', name: 'CADÊNCIA DE TIRO', desc: 'Dispara mais rápido.', apply: () => { upgrades.fireRate++; CFG.fireDelay = Math.max(0.06, 0.16 * Math.pow(0.85, upgrades.fireRate)); } },
-  { id: 'magSize',   icon: '📦', name: 'CARREGADOR +',     desc: 'Mais balas por carregador.', apply: () => { upgrades.magSize++; CFG.magSize += 4; ammo = CFG.magSize; } },
-  { id: 'reserve',   icon: '🎒', name: 'RESERVA DE MUNIÇÃO', desc: 'Aumenta a reserva e os ganhos por pickup.', apply: () => { upgrades.reserve++; CFG.reserveStart += 30; reserve += 30; } },
-  { id: 'reloadSpeed', icon: '🔄', name: 'RECARGA RÁPIDA',  desc: 'Recarrega mais rápido.', apply: () => { upgrades.reloadSpeed++; CFG.reloadTime = Math.max(0.6, 1.5 * Math.pow(0.85, upgrades.reloadSpeed)); } },
-  { id: 'swordDmg',  icon: '🗡️', name: 'LÂMINA AFIADA',    desc: 'Aumenta o dano da espada.', apply: () => { upgrades.swordDmg++; CFG.swordDmg += 15; CFG.swordHeadDmg += 25; CFG.swordRange += 0.15; } },
-  { id: 'rifleDmg',  icon: '💥', name: 'MUNIÇÃO PESADA',    desc: 'Aumenta o dano do rifle.', apply: () => { upgrades.rifleDmg++; CFG.bodyDmg += 5; CFG.headDmg += 15; } },
-  { id: 'maxHp',     icon: '❤️', name: 'VIDA EXTRA',        desc: 'Aumenta a vida máxima e cura.', apply: () => { upgrades.maxHp++; CFG.maxHp += 20; player.hp = Math.min(CFG.maxHp, player.hp + 40); } },
-  { id: 'speed',     icon: '👟', name: 'PASSOS LIGEIROS',   desc: 'Movimento mais rápido.', apply: () => { upgrades.speed++; } }
-];
-
-function pickRandomUpgrades(n) {
-  const pool = [...UPGRADE_POOL];
-  const chosen = [];
-  for (let i = 0; i < n && pool.length; i++) {
-    const idx = (Math.random() * pool.length) | 0;
-    chosen.push(pool.splice(idx, 1)[0]);
-  }
-  return chosen;
-}
-
-function showUpgradeMenu() {
-  state = 'upgrades';
-  upgradeMenuOpen = true;
-  if (!isMobileDevice && document.exitPointerLock) document.exitPointerLock();
-  resetTouchInput();
-  el.upWave.textContent = wave;
-  el.upGrid.innerHTML = '';
-  const choices = pickRandomUpgrades(3);
-  choices.forEach(u => {
-    const lvl = upgrades[u.id] || 0;
-    const card = document.createElement('div');
-    card.className = 'upCard';
-    card.innerHTML = `
-      <span class="icon">${u.icon}</span>
-      <div class="name">${u.name}</div>
-      <div class="desc">${u.desc}</div>
-      <div class="lvl">NÍVEL ATUAL: ${lvl}</div>
-    `;
-    card.addEventListener('click', () => {
-      u.apply();
-      sfx.upgrade();
-      toast('UPGRADE: ' + u.name, '#ffd166');
-      showOverlay(null);
-      state = 'playing';
-      upgradeMenuOpen = false;
-      upgradeScoreGoal = Math.max(60, score + 60);
-      spawnWave();
-      requestLock();
-      updateHud();
-    });
-    el.upGrid.appendChild(card);
-  });
-  showOverlay('upgrades');
-}
-
-function isPortrait() {
-  return window.matchMedia ? window.matchMedia('(orientation: portrait)').matches : window.innerHeight > window.innerWidth;
-}
-
-function vibrate(pattern) {
-  if (isMobileDevice && vibrationEnabled && navigator.vibrate) navigator.vibrate(pattern);
-}
-
-function resetTouchInput() {
-  touchInput.pointers.forEach(pointer => {
-    if (pointer.stick) pointer.stick.classList.remove('active');
-  });
-  touchInput.pointers.clear();
-  touchInput.buttonPointers.fire.clear();
-  touchInput.buttonPointers.jump.clear();
-  touchInput.moveX = touchInput.moveY = touchInput.moveMagnitude = 0;
-  touchInput.crouching = false;
-  keys.Space = false;
-  mouseDown = false;
-  el.leftStick.classList.remove('active');
-  el.rightStick.classList.remove('active');
-  document.querySelectorAll('.touch-button.pressed').forEach(button => button.classList.remove('pressed'));
-}
-
-function updateDeviceMode() {
-  const wasMobile = isMobileDevice;
-  isMobileDevice = resolveDeviceMode();
-  if (wasMobile !== isMobileDevice) touchUiActive = isMobileDevice;
-  document.body.classList.toggle('mobile', isMobileDevice);
-  el.touchControls.classList.toggle('active', isMobileDevice && touchUiActive && state === 'playing');
-  if (wasMobile !== isMobileDevice) {
-    resetTouchInput();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileDevice ? 1.5 : 2));
-    scene.fog.far = isMobileDevice ? 50 : 70;
-  }
-}
-
-function requestStart() {
-  requestImmersiveMode();
-  if (isMobileDevice && isPortrait()) { updateOrientation(); return; }
-  if (isMobileDevice && !tutorialSeen) showTutorial();
-  else startGame();
-}
-
-$('btnPC').addEventListener('click', () => selectDevice('pc'));
-$('btnMobile').addEventListener('click', () => selectDevice('mobile'));
+bindDeviceChoice();
 
 showOverlay('deviceChoice');
 if (forcedDeviceMode) {
   selectDevice(forcedDeviceMode);
+} else {
+  state = 'deviceChoice';
+  showOverlay('deviceChoice');
 }
 })();
 </script>
