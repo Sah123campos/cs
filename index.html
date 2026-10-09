@@ -2005,7 +2005,9 @@ async function mpCreate() {
     }
     if (!code) throw new Error('Não consegui gerar um código. Tente de novo.');
     await MP.db.ref(MATCH_ROOT + '/' + code).set({
-      mode: 'match', status: 'lobby', maxPlayers: max, arena: 'classic', createdAt: mpTS()
+      // hostUid precisa ir junto: set() substitui o nó inteiro e apagaria o hostUid reservado acima
+      mode: 'match', status: 'lobby', maxPlayers: max, arena: 'classic', createdAt: mpTS(),
+      hostUid: MP.uid, createdBy: MP.uid
     });
     await mpEnter(code, name, { hostUid: MP.uid, maxPlayers: max });
   } catch (err) { mpMsg(err.message || 'Erro ao criar sala.', true); }
