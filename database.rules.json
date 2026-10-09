@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": "auth != null",
+
+        ".write": "auth != null && newData.child('hostUid').val() === auth.uid && (!data.exists() || data.child('hostUid').val() === auth.uid)",
+
+        "status": {
+          ".write": "auth != null && root.child('rooms/' + $code + '/players/' + auth.uid).exists()"
+        },
+        "winner": {
+          ".write": "auth != null && root.child('rooms/' + $code + '/players/' + auth.uid).exists()"
+        },
+
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+
+            "hp": {
+              ".write": "auth != null && data.exists() && newData.isNumber() && newData.val() < data.val()"
+            },
+            "alive": {
+              ".write": "auth != null && newData.val() === false"
+            }
+          }
+        }
+      }
+    }
+  }
+}
