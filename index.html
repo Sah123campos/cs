@@ -455,7 +455,7 @@ const WAVE_INTERVAL = 20;
 const MAX_ALIVE = 30;
 
 /* [MP] regras da partida online */
-const MATCH_ROOT = 'matchRooms';
+const MATCH_ROOT = 'rooms';
 const MATCH_SECONDS = 180;       // tempo da partida
 const KILL_LIMIT = 10;           // ou quem chegar primeiro a N abates
 const RESPAWN_MS = 4000;
@@ -1953,7 +1953,7 @@ $('vibrateToggle').addEventListener('change', e => {
    ===================================================================== */
 const MP = {
   ready: false, db: null, uid: null, offset: 0,
-  code: null, ref: null, meta: { createdBy: null, maxPlayers: 4 },
+  code: null, ref: null, meta: { hostUid: null, maxPlayers: 4 },
   status: 'lobby', winner: null, endsAt: 0,
   players: {}, avatars: {}, listeners: [],
   live: false, finishing: false, dead: false, respawnAt: 0, freezeUntil: 0,
@@ -2000,14 +2000,14 @@ async function mpCreate() {
     let code = null;
     for (let i = 0; i < 8 && !code; i++) {
       const c = mpCode();
-      const r = await MP.db.ref(MATCH_ROOT + '/' + c + '/createdBy').transaction(cur => (cur === null ? MP.uid : undefined));
+      const r = await MP.db.ref(MATCH_ROOT + '/' + c + '/hostUid').transaction(cur => (cur === null ? MP.uid : undefined));
       if (r.committed) code = c;
     }
     if (!code) throw new Error('Não consegui gerar um código. Tente de novo.');
-    await MP.db.ref(MATCH_ROOT + '/' + code).update({
+    await MP.db.ref(MATCH_ROOT + '/' + code).set({
       mode: 'match', status: 'lobby', maxPlayers: max, arena: 'classic', createdAt: mpTS()
     });
-    await mpEnter(code, name, { createdBy: MP.uid, maxPlayers: max });
+    await mpEnter(code, name, { hostUid: MP.uid, maxPlayers: max });
   } catch (err) { mpMsg(err.message || 'Erro ao criar sala.', true); }
 }
 
@@ -2026,7 +2026,7 @@ async function mpJoin() {
       if (room.status !== 'lobby') { mpMsg('Essa partida já começou ou terminou.', true); return; }
       if (Object.keys(players).length >= (room.maxPlayers || 4)) { mpMsg('Sala cheia (' + (room.maxPlayers || 4) + ' jogadores).', true); return; }
     }
-    await mpEnter(code, name, { createdBy: room.createdBy, maxPlayers: room.maxPlayers || 4 });
+    await mpEnter(code, name, { hostUid: room.hostUid, maxPlayers: room.maxPlayers || 4 });
   } catch (err) { mpMsg(err.message || 'Erro ao entrar na sala.', true); }
 }
 
@@ -2076,15 +2076,15 @@ function mpRenderRoom() {
   $('mpRoom').style.display = inRoom ? '' : 'none';
   if (!inRoom) return;
   $('mpRoomCode').textContent = MP.code;
-  const list = Object.values(MP.players).sort((a, b) => (a.uid === MP.meta.createdBy ? -1 : b.uid === MP.meta.createdBy ? 1 : 0));
+  const list = Object.values(MP.players).sort((a, b) => (a.uid === MP.meta.hostUid ? -1 : b.uid === MP.meta.hostUid ? 1 : 0));
   const ul = $('mpList'); ul.textContent = '';
   list.forEach(p => {
     const li = document.createElement('li');
-    li.textContent = (p.uid === MP.meta.createdBy ? '★ ' : '') + (p.name || '?') + (p.uid === MP.uid ? ' (você)' : '') +
+    li.textContent = (p.uid === MP.meta.hostUid ? '★ ' : '') + (p.name || '?') + (p.uid === MP.uid ? ' (você)' : '') +
       ' — ' + (p.ready ? '✅ READY' : '⏳ aguardando');
     ul.appendChild(li);
   });
-  const n = list.length, max = MP.meta.maxPlayers, isHost = MP.uid === MP.meta.createdBy;
+  const n = list.length, max = MP.meta.maxPlayers, isHost = MP.uid === MP.meta.hostUid;
   const me = MP.players[MP.uid];
   $('mpReady').textContent = 'READY: ' + (me && me.ready ? 'SIM' : 'NÃO');
   const allReady = n >= 2 && list.every(p => p.ready);
@@ -2102,7 +2102,7 @@ async function mpToggleReady() {
 
 /* [MP] Só o anfitrião inicia (as regras do banco também exigem isso) */
 async function mpStart() {
-  if (!MP.ref || MP.uid !== MP.meta.createdBy) return;
+  if (!MP.ref || MP.uid !== MP.meta.hostUid) return;
   const list = Object.values(MP.players);
   if (list.length < 2 || !list.every(p => p.ready)) return;
   try {
@@ -2166,7 +2166,7 @@ function mpOnPlayer(uid) {
 function mpOnPlayerGone(uid) {
   const a = MP.avatars[uid];
   if (a) { scene.remove(a.e.group); const i = enemies.indexOf(a.e); if (i >= 0) enemies.splice(i, 1); delete MP.avatars[uid]; }
-  if (MP.status === 'lobby' && uid === MP.meta.createdBy && uid !== MP.uid) {   // anfitrião saiu antes de começar
+  if (MP.status === 'lobby' && uid === MP.meta.hostUid && uid !== MP.uid) {   // anfitrião saiu antes de começar
     toast('O ANFITRIÃO SAIU', '#ff6b6b'); mpLeave(); return;
   }
   if (MP.live) mpCheckEnd();
